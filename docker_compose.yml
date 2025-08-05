@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  arbitrage-bot:
+    build: .
+    container_name: arbitrage-bot
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - PRICE_THRESHOLD=${PRICE_THRESHOLD:-10.0}
+      - MIN_VOLUME=${MIN_VOLUME:-50000}
+      - UPDATE_INTERVAL=${UPDATE_INTERVAL:-60}
+      - MAX_ALERTS=${MAX_ALERTS:-5}
+      - ALERT_COOLDOWN=${ALERT_COOLDOWN:-30}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+    
+    # Автоперезапуск при ошибках
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+
+  # Watchtower для автообновлений
+  watchtower:
+    image: containrrr/watchtower
+    container_name: arbitrage-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=3600
+      - WATCHTOWER_CLEANUP=true
+    command: arbitrage-bot
