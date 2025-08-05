@@ -3,7 +3,7 @@ version: '3.8'
 services:
   arbitrage-bot:
     build: .
-    container_name: arbitrage-bot
+    container_name: arb-analyzer
     restart: unless-stopped
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
@@ -40,4 +40,4 @@ services:
     environment:
       - WATCHTOWER_POLL_INTERVAL=3600
       - WATCHTOWER_CLEANUP=true
-    command: arbitrage-bot
+    command: arb-analyzer
