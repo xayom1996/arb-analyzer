@@ -13,7 +13,7 @@ services:
       - ALERT_COOLDOWN=${ALERT_COOLDOWN:-30}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
-      - ./logs:/app/logs
+      - ./logs:/home/projects/logs
       - /etc/localtime:/etc/localtime:ro
     logging:
       driver: "json-file"
