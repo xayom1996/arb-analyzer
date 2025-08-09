@@ -17,7 +17,7 @@ class SimpleConfig:
     # Биржи для мониторинга
     EXCHANGES: List[str] = field(default_factory=lambda: [
         'binance', 'okx', 'bybit', 'kucoin',
-        'gateio', 'mexc', 'htx', 'bitget'
+        'gateio', 'mexc', 'bitget'
     ])
     
     # API ключи бирж (опционально для лучших лимитов)

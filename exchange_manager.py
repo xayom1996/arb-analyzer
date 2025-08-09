@@ -89,6 +89,9 @@ class ExchangeManager:
             quote = market.get('quote', '').upper()
             if quote not in ['USDT', 'USDC', 'BTC', 'ETH', 'BNB']:
                 return False
+            
+            if 'USDT' not in symbol:
+            	return False
                 
             return True
             
