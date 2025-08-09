@@ -5,6 +5,8 @@ from typing import List
 from datetime import datetime
 import logging
 from data_models import ArbitrageOpportunity
+import os
+import json
 
 class TelegramNotifier:
     def __init__(self, config):
@@ -31,6 +33,48 @@ class TelegramNotifier:
                 
         except Exception as e:
             self.logger.error(f"Ошибка инициализации Telegram: {e}")
+            raise
+    
+    async def get_all_chat_ids(self) -> List[int]:
+        try:
+            # Проверяем токен бота
+            response = await self.client.get(f"{self.base_url}/getUpdates")
+            if response.status_code == 200:
+                updates_info = response.json()
+                print(f"{self.base_url}/getUpdates")
+                print(updates_info)
+                results = updates_info['result']
+                chat_ids = {}
+                for result in results:
+                	self.logger.info(f"getUpdate result: {result}")
+                	if result['message']:
+                		chat_ids.add(result['chat']['id'])
+                self.logger.info(f"✅ chat_ids: {chat_ids}")
+                return list(chat_ids)
+            else:
+            	raise Exception(f"Неверный токен бота: {response.text}")
+            	
+        except Exception as e:
+            self.logger.error(f"Ошибка инициализации Telegram: {e}")
+            raise
+                    
+    async def load_users(self) -> List:
+        """Загрузка пользователей из файла"""
+        try:
+            if os.path.exists("users.json"):
+                with open("users.json", 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                users = data.get('users', [])
+                    
+                self.logger.info(f"Загружено {len(users)} пользователей")
+                
+                return users
+            else:
+                self.logger.info("Файл пользователей не найден, создается новый")
+                return []
+                
+        except Exception as e:
+            self.logger.error(f"Ошибка загрузки пользователей: {e}")
             raise
     
     async def send_message(self, text: str, parse_mode: str = 'HTML') -> bool:
@@ -60,7 +104,7 @@ class TelegramNotifier:
         """Отправка уведомлений о возможностях арбитража"""
         if not opportunities:
             return
-        
+            
         try:
             for i, opportunity in enumerate(opportunities):
                 profit_calc = opportunity.profit_estimation()
