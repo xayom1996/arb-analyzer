@@ -28,16 +28,16 @@ class ArbitrageBotSystem:
     def _setup_logging(self):
         """Настройка логирования"""
         # Создаем директорию для логов
-        os.makedirs('logs', exist_ok=True)
+        # os.makedirs('logs', exist_ok=True)
 
-        logging.basicConfig(
-            level=getattr(logging, self.config.LOG_LEVEL),
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(f'logs/{self.config.LOG_FILE}'),
-                logging.StreamHandler(sys.stdout)
-            ]
-        )
+        # logging.basicConfig(
+        #     level=getattr(logging, self.config.LOG_LEVEL),
+        #     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        #     handlers=[
+        #         logging.FileHandler(f'logs/{self.config.LOG_FILE}'),
+        #         logging.StreamHandler(sys.stdout)
+        #     ]
+        # )
         return logging.getLogger(__name__)
 
     async def initialize(self):
