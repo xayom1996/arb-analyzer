@@ -89,7 +89,7 @@ class ArbitrageBotSystem:
                     'AVAX/USDT', 'POL/USDT', 'LINK/USDT', 'ATOM/USDT', 'NEAR/USDT',
                     'FTM/USDT', 'ONE/USDT', 'ALGO/USDT', 'VET/USDT', 'ENJ/USDT',
                     'SAND/USDT', 'MANA/USDT', 'AXS/USDT', 'GALA/USDT', 'CHZ/USDT',
-                    'FIL/USDT', 'XTZ/USDT', 'EGLD/USDT', 'FLOW/USDT', 'ICP/USDT', 'BTC/USDT', 'ETH/USDT'
+                    'FIL/USDT', 'XTZ/USDT', 'EGLD/USDT', 'FLOW/USDT', 'ICP/USDT'
                 ]
 
             self.logger.info(f"Мониторим {len(symbols)} символов")
@@ -118,51 +118,10 @@ class ArbitrageBotSystem:
 
                 # Получаем данные с бирж
                 self.logger.info("📊 Сбор данных с бирж...")
-                price_data = await self.exchange_manager.fetch_all_tickers(symbols)
-
-                if not price_data:
-                    self.logger.warning("Не получено данных с бирж")
-                    await asyncio.sleep(30)
-                    continue
-
-                self.logger.info(f"💰 Получено {len(price_data)} цен с бирж")
-
-                # Анализируем возможности арбитража
-                self.logger.info("🔍 Анализ возможностей арбитража...")
-                opportunities = self.arbitrage_analyzer.analyze_arbitrage_opportunities(
-                    price_data)
-
-                # Фильтруем уведомления (избегаем спам)
-                new_opportunities = self.arbitrage_analyzer.filter_notifications(
-                    opportunities)
-
-                # Отправляем уведомления
-                if new_opportunities:
-                    self.logger.info(
-                        f"🚨 Найдено {len(new_opportunities)} новых возможностей для уведомления")
-                    await self.telegram_notifier.send_arbitrage_alerts(new_opportunities)
-
-                    # Логируем лучшие возможности
-                    for opp in new_opportunities[:3]:
-                        self.logger.info(f"  🎯 {opp}")
-                else:
-                    self.logger.info(
-                        f"✅ Найдено {len(opportunities)} возможностей, но все уже были отправлены ранее")
+                await self.exchange_manager.fetch_all_tickers(symbols, self.telegram_notifier, self.arbitrage_analyzer)
 
                 # Обновляем статистику
                 self.arbitrage_analyzer.update_session_stats()
-
-                # Обзор рынка каждые 10 циклов
-                if cycle_count % 10 == 0:
-                    market_overview = self.arbitrage_analyzer.get_market_overview(
-                        price_data)
-                    self.logger.info(
-                        f"📈 Обзор: {market_overview['symbols_with_arbitrage']}/{market_overview['total_symbols_monitored']} символов с арбитражем")
-
-                # Системная статистика каждый час (60 циклов при интервале 60 сек)
-                if cycle_count % 60 == 0:
-                    session_summary = self.arbitrage_analyzer.get_session_summary()
-                    await self.telegram_notifier.send_system_message(f"📊 Часовая статистика:\n{session_summary}")
 
                 # Рассчитываем время выполнения
                 cycle_duration = (datetime.now() - cycle_start).total_seconds()

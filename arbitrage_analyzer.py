@@ -1,6 +1,6 @@
 # arbitrage_analyzer.py - Упрощенный анализатор без базы данных
 from typing import List, Dict
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 from collections import defaultdict
 from data_models import PriceData, ArbitrageOpportunity, NotificationManager
@@ -59,29 +59,48 @@ class ArbitrageAnalyzer:
             return opportunities
         
         # Сортируем по цене
-        valid_prices.sort(key=lambda x: x.price)
+        valid_prices.sort(key=lambda x: x.bid)
+
+        for i in range(len(valid_prices)):
+            for j in range(i + 1, len(valid_prices)):
+                price_difference = ((valid_prices[j].ask - valid_prices[i].bid) / valid_prices[i].bid) * 100
+
+                if price_difference >= self.config.PRICE_DIFFERENCE_THRESHOLD:
+                    # Дополнительные проверки
+                    if self._is_valid_opportunity(symbol, valid_prices[i], valid_prices[j], price_difference):
+                        opportunity = ArbitrageOpportunity(
+                            symbol=symbol,
+                            buy_exchange=valid_prices[i].exchange,
+                            sell_exchange=valid_prices[j].exchange,
+                            buy_price=valid_prices[i].bid,
+                            sell_price=valid_prices[j].ask,
+                            price_difference_percent=price_difference,
+                            min_volume_24h=min(valid_prices[i].volume_24h, valid_prices[j].volume_24h),
+                            timestamp=datetime.now() + timedelta(hours=5)
+                        )
+                        opportunities.append(opportunity)
         
-        min_price_data = valid_prices[0]  # Самая низкая цена (покупка)
-        max_price_data = valid_prices[-1]  # Самая высокая цена (продажа)
+        # min_price_data = valid_prices[0]  # Самая низкая цена (покупка)
+        # max_price_data = valid_prices[-1]  # Самая высокая цена (продажа)
         
-        # Рассчитываем разность в процентах
-        price_difference = ((max_price_data.price - min_price_data.price) / min_price_data.price) * 100
+        # # Рассчитываем разность в процентах
+        # price_difference = ((max_price_data.price - min_price_data.price) / min_price_data.price) * 100
         
-        # Проверяем превышение порога
-        if price_difference >= self.config.PRICE_DIFFERENCE_THRESHOLD:
-            # Дополнительные проверки
-            if self._is_valid_opportunity(symbol, min_price_data, max_price_data, price_difference):
-                opportunity = ArbitrageOpportunity(
-                    symbol=symbol,
-                    buy_exchange=min_price_data.exchange,
-                    sell_exchange=max_price_data.exchange,
-                    buy_price=min_price_data.price,
-                    sell_price=max_price_data.price,
-                    price_difference_percent=price_difference,
-                    min_volume_24h=min(min_price_data.volume_24h, max_price_data.volume_24h),
-                    timestamp=datetime.now()
-                )
-                opportunities.append(opportunity)
+        # # Проверяем превышение порога
+        # if price_difference >= self.config.PRICE_DIFFERENCE_THRESHOLD:
+        #     # Дополнительные проверки
+        #     if self._is_valid_opportunity(symbol, min_price_data, max_price_data, price_difference):
+        #         opportunity = ArbitrageOpportunity(
+        #             symbol=symbol,
+        #             buy_exchange=min_price_data.exchange,
+        #             sell_exchange=max_price_data.exchange,
+        #             buy_price=min_price_data.bid,
+        #             sell_price=max_price_data.ask,
+        #             price_difference_percent=price_difference,
+        #             min_volume_24h=min(min_price_data.volume_24h, max_price_data.volume_24h),
+        #             timestamp=datetime.now()
+        #         )
+        #         opportunities.append(opportunity)
         
         return opportunities
     

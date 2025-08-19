@@ -109,9 +109,12 @@ class TelegramNotifier:
             for i, opportunity in enumerate(opportunities):
                 profit_calc = opportunity.profit_estimation()
                 
+                x = int(opportunity.price_difference_percent // 1.95)
+                signal_icons = "🚨" * x
+
                 # Создаем красивое уведомление
                 alert_message = f"""
-🚨 <b>АРБИТРАЖ #{i+1}</b>
+{signal_icons} <b>АРБИТРАЖ {opportunity.price_difference_percent:.2f}%</b>
 
 💎 <b>Монета:</b> {opportunity.symbol}
 💰 <b>Спред:</b> <b>{opportunity.price_difference_percent:.2f}%</b>
@@ -127,14 +130,6 @@ class TelegramNotifier:
 📊 <b>Данные:</b>
 📈 Объем 24ч: <code>${opportunity.min_volume_24h:,.0f}</code>
 ⏰ Время: <code>{opportunity.timestamp.strftime('%H:%M:%S')}</code>
-
-💸 <b>Потенциальная прибыль с $1000:</b>
-• Валовая: <b>${profit_calc['gross_profit']:.2f}</b>
-• Комиссии: <b>-${profit_calc['estimated_fees']:.2f}</b>
-• Чистая: <b>${profit_calc['net_profit']:.2f}</b>
-• ROI: <b>{profit_calc['roi_percentage']:.2f}%</b>
-
-⚠️ <i>Всегда проверяйте ликвидность перед торговлей!</i>
                 """.strip()
                 
                 success = await self.send_message(alert_message)

@@ -4,6 +4,8 @@ from typing import Dict, List, Optional
 from datetime import datetime
 import logging
 from data_models import PriceData
+from telegram_notifier import TelegramNotifier
+from arbitrage_analyzer import ArbitrageAnalyzer
 
 class ExchangeManager:
     def __init__(self, config):
@@ -25,21 +27,20 @@ class ExchangeManager:
                 })
                 
                 # Проверка подключения с правильной обработкой sync/async
-                if hasattr(exchange, 'load_markets'):
+                if hasattr(exchange, 'loadMarkets'):
                     try:
-                        if asyncio.iscoroutinefunction(exchange.load_markets):
-                            await exchange.load_markets()
-                        else:
-                            # Запускаем синхронный метод в отдельном потоке
-                            loop = asyncio.get_event_loop()
-                            await loop.run_in_executor(None, exchange.load_markets)
+                        # if asyncio.iscoroutinefunction(exchange.loadMarkets):
+                        #     await exchange.loadMarkets()
+                        # else:
+                        #     # Запускаем синхронный метод в отдельном потоке
+                        #     loop = asyncio.get_event_loop()
+                        #     await loop.run_in_executor(None, exchange.loadMarkets)
+                        
+                        self.exchanges[exchange_name] = exchange
+                        self.logger.info(f"Биржа {exchange_name} инициализирована успешно")
                     except Exception as load_error:
                         self.logger.warning(f"Не удалось загрузить рынки для {exchange_name}: {load_error}")
                         # Продолжаем без загрузки рынков
-                        
-                self.exchanges[exchange_name] = exchange
-                
-                self.logger.info(f"Биржа {exchange_name} инициализирована успешно")
                 
             except Exception as e:
                 self.logger.error(f"Ошибка инициализации биржи {exchange_name}: {e}")
@@ -53,6 +54,7 @@ class ExchangeManager:
         for exchange_name, exchange in self.exchanges.items():
             try:
                 markets = exchange.markets
+                self.logger.error(f"{exchange.name}: {markets}")
                 for symbol in markets:
                     if self._is_valid_symbol(symbol, markets[symbol]):
                         all_symbols.add(symbol)
@@ -118,6 +120,8 @@ class ExchangeManager:
                 loop = asyncio.get_event_loop()
                 ticker = await loop.run_in_executor(None, exchange.fetch_ticker, symbol) 
             
+            # self.logger.info(f"Данные с тикера {symbol} {exchange_name} {ticker}")
+            
             # Проверяем минимальный объем торгов
             volume_usd = ticker.get('quoteVolume', 0) or 0
             if volume_usd < self.config.MIN_VOLUME_USD:
@@ -127,6 +131,8 @@ class ExchangeManager:
                 symbol=symbol,
                 exchange=exchange_name,
                 price=ticker['last'],
+                bid=ticker['bid'],
+                ask=ticker['ask'],
                 volume_24h=volume_usd,
                 timestamp=datetime.now()
             )
@@ -135,34 +141,40 @@ class ExchangeManager:
             self.logger.warning(f"Ошибка получения тикера {symbol} с {exchange_name}: {e}")
             return None
     
-    async def fetch_all_tickers(self, symbols: List[str]) -> List[PriceData]:
+    async def fetch_all_tickers(self, symbols: List[str], telegram_notifier: TelegramNotifier, arbitrage_analyzer: ArbitrageAnalyzer):
         """Получение всех тикеров со всех бирж"""
-        all_price_data = []
         
         # Создаем задачи для параллельного выполнения
-        tasks = []
-        for exchange_name in self.exchanges.keys():
-            for symbol in symbols:
+        for symbol in symbols:
+            tasks = []
+            all_price_data = []
+             # Выполняем все запросы параллельно с ограничением
+            semaphore = asyncio.Semaphore(8)  # Максимум 8 одновременных запросов
+
+            for exchange_name in self.exchanges.keys():
                 task = self.fetch_ticker_data(exchange_name, symbol)
                 tasks.append(task)
-        
-        # Выполняем все запросы параллельно с ограничением
-        semaphore = asyncio.Semaphore(10)  # Максимум 10 одновременных запросов
-        
-        async def limited_fetch(task):
-            async with semaphore:
-                return await task
-        
-        results = await asyncio.gather(*[limited_fetch(task) for task in tasks], 
-                                     return_exceptions=True)
-        
-        # Фильтруем успешные результаты
-        for result in results:
-            if isinstance(result, PriceData):
-                all_price_data.append(result)
-        
-        self.logger.info(f"Получено {len(all_price_data)} тикеров")
-        return all_price_data
+            
+            async def limited_fetch(task):
+                async with semaphore:
+                    return await task
+            
+            results = await asyncio.gather(*[limited_fetch(task) for task in tasks], 
+                                        return_exceptions=True)
+            
+            # Фильтруем успешные результаты
+            for result in results:
+                if isinstance(result, PriceData):
+                    all_price_data.append(result)
+            
+            opportunities = arbitrage_analyzer.analyze_arbitrage_opportunities(
+                    all_price_data)
+            
+            self.logger.info(f"Найдено {len(opportunities)} возможностей для {symbol}")
+
+            await telegram_notifier.send_arbitrage_alerts(opportunities)
+
+        return
     
     async def fetch_popular_symbols(self, limit: int = 200) -> List[str]:
         """Получение популярных символов на основе объема торгов"""

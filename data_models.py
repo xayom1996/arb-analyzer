@@ -8,6 +8,8 @@ class PriceData:
     symbol: str
     exchange: str
     price: float
+    bid: float
+    ask: float
     volume_24h: float
     timestamp: datetime
     
