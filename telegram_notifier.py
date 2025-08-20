@@ -109,8 +109,8 @@ class TelegramNotifier:
             for i, opportunity in enumerate(opportunities):
                 profit_calc = opportunity.profit_estimation()
                 
-                x = int(opportunity.price_difference_percent // 1.95)
-                signal_icons = "🚨" * x
+                # x = int(opportunity.price_difference_percent // 1.95)
+                signal_icons = "🚨"
 
                 # Создаем красивое уведомление
                 alert_message = f"""
@@ -122,10 +122,12 @@ class TelegramNotifier:
 📈 <b>КУПИТЬ:</b>
 🏛️ Биржа: <b>{opportunity.buy_exchange}</b>
 💵 Цена: <code>${opportunity.buy_price:.8f}</code>
+🌐 Cеть: {opportunity.buy_exchange_networks}
 
 📉 <b>ПРОДАТЬ:</b>
 🏛️ Биржа: <b>{opportunity.sell_exchange}</b>
 💵 Цена: <code>${opportunity.sell_price:.8f}</code>
+🌐 Cеть: {opportunity.sell_exchange_networks}
 
 📊 <b>Данные:</b>
 📈 Объем 24ч: <code>${opportunity.min_volume_24h:,.0f}</code>

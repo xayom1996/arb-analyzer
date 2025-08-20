@@ -20,7 +20,9 @@ class PriceData:
 class ArbitrageOpportunity:
     symbol: str
     buy_exchange: str
+    buy_exchange_networks: str
     sell_exchange: str
+    sell_exchange_networks: str
     buy_price: float
     sell_price: float
     price_difference_percent: float

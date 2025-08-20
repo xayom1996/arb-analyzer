@@ -54,8 +54,6 @@ class ArbitrageBotSystem:
 
             # Инициализация менеджера бирж
             self.exchange_manager = ExchangeManager(self.config)
-            await self.exchange_manager.initialize_exchanges()
-            self.logger.info("✅ Биржи инициализированы")
 
             # Инициализация анализатора арбитража
             self.arbitrage_analyzer = ArbitrageAnalyzer(self.config)
@@ -109,6 +107,9 @@ class ArbitrageBotSystem:
                 cycle_count += 1
 
                 self.logger.info(f"🔄 Цикл мониторинга #{cycle_count} начат...")
+
+                await self.exchange_manager.initialize_exchanges()
+                self.logger.info("✅ Биржи load markets успешны")
 
                 # Получаем символы для мониторинга
                 symbols = await self.get_monitoring_symbols()

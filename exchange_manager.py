@@ -14,38 +14,99 @@ class ExchangeManager:
         self.logger = logging.getLogger(__name__)
         
     async def initialize_exchanges(self):
-        """Инициализация всех бирж"""
+        semaphore = asyncio.Semaphore(8)  # Максимум 8 одновременных запросов
+        tasks = []
+
         for exchange_name in self.config.EXCHANGES:
-            try:
-                exchange_class = getattr(ccxt, exchange_name)
-                credentials = self.config.EXCHANGE_CREDENTIALS.get(exchange_name, {})
+            exchange_class = getattr(ccxt, exchange_name)
+            credentials = self.config.EXCHANGE_CREDENTIALS.get(exchange_name, {})
+            print(credentials)
+            
+            exchange = exchange_class({
+                **credentials,
+                'enableRateLimit': True,
+                'timeout': 30000,
+            })
+
+            print(exchange_name)
+
+            self.exchanges[exchange_name] = exchange
+
+        for exchange_name in self.exchanges.keys():
+            exchange = self.exchanges.get(exchange_name)
+            task = self.load_markets(exchange_name)
+            tasks.append(task)
+        
+        async def limited_fetch(task):
+            async with semaphore:
+                try:
+                    return await task
+                except Exception as e:
+                    self.logger.error(f"Ошибка инициализации биржи {task}: {e}")
+        
+        results = await asyncio.gather(*[limited_fetch(task) for task in tasks], 
+                                    return_exceptions=True)
+
+        # print(len(results))
+
+        # """Инициализация всех бирж"""
+        # for exchange_name in self.config.EXCHANGES:
+        #     try:
+        #         exchange_class = getattr(ccxt, exchange_name)
+        #         credentials = self.config.EXCHANGE_CREDENTIALS.get(exchange_name, {})
                 
-                exchange = exchange_class({
-                    **credentials,
-                    'enableRateLimit': True,
-                    'timeout': 30000,
-                })
+        #         exchange = exchange_class({
+        #             **credentials,
+        #             'enableRateLimit': True,
+        #             'timeout': 30000,
+        #         })
                 
-                # Проверка подключения с правильной обработкой sync/async
-                if hasattr(exchange, 'loadMarkets'):
-                    try:
-                        # if asyncio.iscoroutinefunction(exchange.loadMarkets):
-                        #     await exchange.loadMarkets()
-                        # else:
-                        #     # Запускаем синхронный метод в отдельном потоке
-                        #     loop = asyncio.get_event_loop()
-                        #     await loop.run_in_executor(None, exchange.loadMarkets)
+        #         # Проверка подключения с правильной обработкой sync/async
+        #         if hasattr(exchange, 'fetch_currencies'):
+        #             try:
+        #                 if asyncio.iscoroutinefunction(exchange.fetch_currencies):
+        #                     await exchange.fetch_currencies()
+        #                 else:
+        #                     # Запускаем синхронный метод в отдельном потоке
+        #                     loop = asyncio.get_event_loop()
+        #                     await loop.run_in_executor(None, exchange.fetch_currencies)
                         
-                        self.exchanges[exchange_name] = exchange
-                        self.logger.info(f"Биржа {exchange_name} инициализирована успешно")
-                    except Exception as load_error:
-                        self.logger.warning(f"Не удалось загрузить рынки для {exchange_name}: {load_error}")
-                        # Продолжаем без загрузки рынков
+        #                 self.exchanges[exchange_name] = exchange
+        #                 self.logger.info(f"Биржа {exchange_name} инициализирована успешно")
+        #             except Exception as load_error:
+        #                 self.logger.warning(f"Не удалось загрузить рынки для {exchange_name}: {load_error}")
+        #                 # Продолжаем без загрузки рынков
                 
-            except Exception as e:
-                self.logger.error(f"Ошибка инициализации биржи {exchange_name}: {e}")
+        #     except Exception as e:
+        #         self.logger.error(f"Ошибка инициализации биржи {exchange_name}: {e}")
                 
-        self.logger.info(f"Инициализировано {len(self.exchanges)} бирж")
+        # self.logger.info(f"Инициализировано {len(self.exchanges)} бирж")
+    
+    async def load_markets(self, exchange_name: str) -> dict:
+        """Получение данных load_markets с биржи"""
+        try:
+            exchange = self.exchanges.get(exchange_name)
+            if not exchange:
+                return None
+            
+            # Проверяем есть ли метод load_markets
+            if not hasattr(exchange, 'load_markets'):
+                return None
+                
+            # Определяем синхронный или асинхронный метод
+            if asyncio.iscoroutinefunction(exchange.load_markets):
+                data = await exchange.load_markets()
+            else:
+                print(exchange_name)
+                # Запускаем синхронный метод в отдельном потоке
+                loop = asyncio.get_event_loop()
+                data = await loop.run_in_executor(None, exchange.load_markets) 
+            
+            return data
+            
+        except Exception as e:
+            self.logger.warning(f"Ошибка получения тикера {symbol} с {exchange_name}: {e}")
+            return None
     
     async def get_all_symbols(self) -> List[str]:
         """Получение списка всех символов доступных на биржах"""
@@ -94,12 +155,38 @@ class ExchangeManager:
             
             if 'USDT' not in symbol:
             	return False
+            
+            if 'USD' in symbol.split('/')[0]:
+                return False
                 
             return True
             
         except Exception:
             return False
-    
+
+
+    async def get_currency_networks(self, exchange_name: str, currency: str, price: float) -> str:
+        exchange = self.exchanges.get(exchange_name)
+        networks = ''
+        if not exchange:
+            return None 
+        
+        currency_info = exchange.currency(currency)
+
+        if currency_info and 'networks' in currency_info:
+            for network, data in currency_info['networks'].items():
+                if data['active'] == True:
+                    networks += f"\n{network}"
+                    if data['fee'] != None:
+                        networks += f", Комиссия: {round(data['fee'] * price, 2)} USDT\n"
+                # networks += f"Withdraw Enabled: {data['withdraw']}\n"
+                # networks += f"Deposit Enabled: {data['deposit']}\n"
+        
+        if networks == '':
+            networks = 'Пусто'
+            
+        return networks
+            
     async def fetch_ticker_data(self, exchange_name: str, symbol: str) -> Optional[PriceData]:
         """Получение данных тикера с биржи"""
         try:
@@ -170,6 +257,10 @@ class ExchangeManager:
             opportunities = arbitrage_analyzer.analyze_arbitrage_opportunities(
                     all_price_data)
             
+            for opp in opportunities: 
+                opp.buy_exchange_networks = await self.get_currency_networks(opp.buy_exchange, opp.symbol.split('/')[0], opp.buy_price)
+                opp.sell_exchange_networks = await self.get_currency_networks(opp.sell_exchange, opp.symbol.split('/')[0], opp.sell_price)
+
             self.logger.info(f"Найдено {len(opportunities)} возможностей для {symbol}")
 
             await telegram_notifier.send_arbitrage_alerts(opportunities)
