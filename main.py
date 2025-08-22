@@ -77,7 +77,7 @@ class ArbitrageBotSystem:
         """Получение списка символов для мониторинга"""
         try:
             # Получаем популярные символы на основе объема торгов
-            symbols = await self.exchange_manager.fetch_popular_symbols(limit=200)
+            symbols = await self.exchange_manager.fetch_popular_symbols(limit=400)
 
             if not symbols:
                 self.logger.warning(
